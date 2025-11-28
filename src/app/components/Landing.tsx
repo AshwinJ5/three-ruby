@@ -2,69 +2,80 @@
 
 import React, { useRef, memo } from "react";
 import Image from "next/image";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { motion, useScroll, useTransform, MotionValue } from "framer-motion";
 
-// --- 0. GLOBAL STYLES FOR 3D CUBE (Drop-in) ---
 const GlobalStyles = () => (
     <style jsx global>{`
-        .perspective-1000 { perspective: 1000px; }
-        .preserve-3d { transform-style: preserve-3d; }
-        .backface-hidden { backface-visibility: hidden; }
-        
-        @keyframes spin-3d {
-            from { transform: rotateX(0deg) rotateY(0deg); }
-            to   { transform: rotateX(360deg) rotateY(360deg); }
+        .perspective-1000 {
+            perspective: 1000px;
         }
-        .animate-spin-3d {
-            animation: spin-3d 20s linear infinite;
+        .preserve-3d {
+            transform-style: preserve-3d;
+        }
+        .backface-hidden {
+            backface-visibility: hidden;
         }
     `}</style>
 );
 
-// --- 1. LOGO COMPONENT ---
-const CubeLogo = memo(() => {
+const CubeLogo = memo(({ style }: { style?: any }) => {
     const baseClass = "absolute w-[36px] h-[36px] bg-[#FFE4D6]";
     return (
-        <div className="relative w-[140px] h-[92px] shrink-0" aria-label="Logo">
+        <motion.div style={style} className="relative w-[140px] h-[92px] shrink-0" aria-label="Logo">
             <div className={`${baseClass} -top-1.5 left-1/2 -translate-x-1/2`} />
             <div className={`${baseClass} top-3 left-2 -rotate-45`} />
             <div className={`${baseClass} top-3 right-2 rotate-45`} />
             <div className={`${baseClass} bottom-0 -left-2.5`} />
             <div className={`${baseClass} bottom-0 left-1/2 -translate-x-1/2`} />
             <div className={`${baseClass} bottom-0 -right-2.5`} />
-        </div>
+        </motion.div>
     );
 });
 CubeLogo.displayName = "CubeLogo";
 
-// --- 2. FLOATING CUBE COMPONENT ---
 interface FloatingCubeProps {
     images: string[];
     alt?: string;
     className?: string;
+    style?: any;
+    rotateX: MotionValue<number>;
+    rotateY: MotionValue<number>;
+    individualRotateY?: MotionValue<number>;
 }
 
-const FloatingCube: React.FC<FloatingCubeProps> = ({ images, alt = "Cube Side", className = "" }) => {
+const FloatingCube: React.FC<FloatingCubeProps> = ({
+    images,
+    alt = "Cube Side",
+    className = "",
+    style,
+    rotateX,
+    rotateY,
+    individualRotateY,
+}) => {
     const getImg = (index: number) => images[index % images.length];
 
     return (
-        <div
-            className={`group relative z-10 perspective-1000 ${className} 
-            w-32 h-32 
-            md:absolute 
-            md:w-32 md:h-32 
-            lg:w-40 lg:h-40 
-            [--s:128px] lg:[--s:160px]`}
+        <motion.div
+            style={style}
+            className={`group absolute z-10 perspective-1000 
+            w-32 h-32 lg:w-40 lg:h-40 
+            [--s:128px] lg:[--s:160px] ${className}`}
         >
-            <div className="relative h-full w-full preserve-3d animate-spin-3d group-hover:[animation-play-state:paused]">
+            <motion.div
+                style={{
+                    rotateX: rotateX,
+                    rotateY: individualRotateY ? individualRotateY : rotateY,
+                }}
+                className="relative h-full w-full preserve-3d"
+            >
                 <CubeFace src={getImg(0)} alt={alt} transform="rotateY(0deg) translateZ(calc(var(--s)/2))" />
                 <CubeFace src={getImg(1)} alt={alt} transform="rotateY(180deg) translateZ(calc(var(--s)/2))" />
                 <CubeFace src={getImg(2)} alt={alt} transform="rotateY(90deg) translateZ(calc(var(--s)/2))" />
                 <CubeFace src={getImg(3)} alt={alt} transform="rotateY(-90deg) translateZ(calc(var(--s)/2))" />
                 <CubeFace src={getImg(4)} alt={alt} transform="rotateX(90deg) translateZ(calc(var(--s)/2))" />
                 <CubeFace src={getImg(5)} alt={alt} transform="rotateX(-90deg) translateZ(calc(var(--s)/2))" />
-            </div>
-        </div>
+            </motion.div>
+        </motion.div>
     );
 };
 
@@ -83,107 +94,156 @@ const CubeFace = ({ src, alt, transform }: { src: string; alt: string; transform
     </div>
 );
 
-// --- 3. MAIN LANDING PAGE ---
+const useCubePath = (
+    scrollY: MotionValue<number>,
+    start: { x: number; y: number; r: number },
+    end: { top: string; left: string; r: number }
+) => {
+    const PHASE1_END = 0.1;
+    const PHASE2_END = 0.33;
+
+    const left = useTransform(
+        scrollY,
+        [0, PHASE1_END, PHASE2_END],
+        [`calc(50% + ${start.x}px)`, `calc(50% + ${start.x}px)`, end.left]
+    );
+
+    const top = useTransform(
+        scrollY,
+        [0, PHASE1_END, PHASE2_END],
+        [`calc(100px + ${start.y}px)`, `calc(100px + ${start.y}px)`, end.top]
+    );
+
+    const scale = useTransform(scrollY, [0, PHASE1_END, PHASE2_END], [0.25, 0.25, 1]);
+    const rotate = useTransform(scrollY, [0, PHASE1_END, PHASE2_END], [start.r, start.r, end.r]);
+    const opacity = useTransform(scrollY, [0, 0.05, 0.1], [0, 0, 1]);
+
+    return { left, top, scale, rotate, opacity };
+};
+
 const LandingPage: React.FC = () => {
-    // Framer Motion Hooks for the Pinned Section
     const containerRef = useRef<HTMLDivElement>(null);
     const { scrollYProgress } = useScroll({
         target: containerRef,
         offset: ["start start", "end end"],
     });
 
-    // Adds a subtle rotation to the ring of cubes as you scroll down the 500vh
-    const rotation = useTransform(scrollYProgress, [0, 1], [0, 45]);
+    const PHASE1_END = 0.1;
+    const PHASE2_END = 0.33;
+    const PHASE3_END = 0.67;
+
+    const logoOpacity = useTransform(scrollYProgress, [0, PHASE1_END], [1, 0]);
+    const textBlur = useTransform(scrollYProgress, [0, 0.15, 0.25], ["blur(0px)", "blur(0px)", "blur(20px)"]);
+    const textOpacity = useTransform(scrollYProgress, [0, 0.2, 0.3], [1, 1, 0]);
+    const textScale = useTransform(scrollYProgress, [0, 0.3], [1, 1.3]);
+
+    const centerTextOpacity = useTransform(scrollYProgress, [PHASE2_END - 0.05, PHASE2_END], [0, 1]);
+
+    const cubeRotateX = useTransform(scrollYProgress, [PHASE1_END, PHASE2_END, PHASE3_END], [45, 135, 360]);
+
+    const cubeRotateY = useTransform(scrollYProgress, [PHASE1_END, PHASE2_END, PHASE3_END], [45, 135, 360]);
+
+    const individualRotateY = useTransform(scrollYProgress, [PHASE3_END, 1], [0, 240]);
+
+    const cube1 = useCubePath(scrollYProgress, { x: 0, y: -6, r: 0 }, { top: "20%", left: "25%", r: 0 });
+    const cube2 = useCubePath(scrollYProgress, { x: -35, y: 18, r: -45 }, { top: "50%", left: "15%", r: 0 });
+    const cube3 = useCubePath(scrollYProgress, { x: -52, y: 54, r: 0 }, { top: "80%", left: "25%", r: 0 });
+
+    const cube4 = useCubePath(scrollYProgress, { x: 35, y: 18, r: 45 }, { top: "20%", left: "75%", r: 0 });
+    const cube5 = useCubePath(scrollYProgress, { x: 0, y: 54, r: 0 }, { top: "50%", left: "85%", r: 0 });
+    const cube6 = useCubePath(scrollYProgress, { x: 52, y: 54, r: 0 }, { top: "80%", left: "75%", r: 0 });
 
     return (
         <div className="flex min-h-screen flex-col font-sans bg-[#331707] text-[#F2EBE3]">
             <GlobalStyles />
 
-            {/* --- HERO SECTION --- */}
-            <div className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden pb-20">
-                <header className="flex justify-center pb-16 pt-12">
-                    <CubeLogo />
-                </header>
-
-                <section className="relative z-10 mx-auto mb-16 max-w-5xl px-4 text-center">
-                    <h1 className="font-serif text-[40px] leading-tight md:text-[60px] md:leading-[1.15] font-normal">
-                        The First Media Company crafted For the Digital First generation
-                    </h1>
-                </section>
-                
-            </div>
-
-            {/* --- PINNED SCROLL SECTION (500VH) --- */}
-            <section ref={containerRef} className="relative w-full h-[500vh]">
-                
-                {/* 
-                   STICKY CONTAINER
-                   This stays pinned to the screen while the parent scrolls.
-                */}
+            <section ref={containerRef} className="relative w-full h-[600vh]">
                 <div className="sticky top-0 flex h-screen w-full flex-col items-center justify-center overflow-hidden">
-                    
-                    {/* 
-                        Motion Div: Rotates slightly based on scroll progress 
-                        to give depth feedback.
-                    */}
-                    <motion.div 
-                        style={{ rotate: rotation }}
-                        className="relative w-full max-w-6xl h-[750px] px-4"
+                    <div className="absolute top-[100px] z-50">
+                        <CubeLogo style={{ opacity: logoOpacity }} />
+                    </div>
+
+                    <motion.div
+                        style={{ filter: textBlur, opacity: textOpacity, scale: textScale }}
+                        className="absolute inset-0 flex flex-col items-center justify-center z-20 pointer-events-none px-4"
                     >
-                        
-                        {/* CENTER TEXT (Counter-rotated so it stays straight) */}
-                        <motion.div 
-                            style={{ rotate: useTransform(rotation, r => -r) }}
-                            className="relative z-20 mx-auto mb-12 max-w-md text-center md:absolute md:left-1/2 md:top-1/2 md:mb-0 md:-translate-x-1/2 md:-translate-y-1/2"
-                        >
-                            <h2 className="mb-4 text-[20px] font-bold uppercase tracking-widest">
-                                Where innovation meets precision.
-                            </h2>
-                            <p className="px-6 text-[18px] leading-relaxed text-white/70 md:text-sm font-thin">
-                                Symphonia unites visionary thinkers, creative architects, and analytical experts,
-                                collaborating seamlessly to transform challenges into opportunities.
-                            </p>
-                        </motion.div>
+                        <section className="max-w-5xl text-center mt-32">
+                            <h1 className="font-serif text-[40px] leading-tight md:text-[60px] md:leading-[1.15] font-normal">
+                                The First Media Company crafted For the Digital First generation
+                            </h1>
+                        </section>
+                        <div className="animate-bounce mt-20 opacity-50 text-sm">Scroll to Transform ↓</div>
+                    </motion.div>
 
-                        {/* CUBES GRID */}
-                        <div className="grid w-full grid-cols-2 gap-4 md:block h-full">
-                            
-                            {/* Top Row */}
+                    <motion.div
+                        style={{ opacity: centerTextOpacity }}
+                        className="relative z-10 mx-auto max-w-2xl text-center px-6"
+                    >
+                        <h2 className="mb-6 text-[24px] font-bold uppercase tracking-widest">
+                            Where innovation meets precision.
+                        </h2>
+                        <p className="text-[18px] leading-relaxed text-white/80 md:text-lg font-light max-w-3xl mx-auto">
+                            Symphonia unites visionary thinkers, creative architects, and analytical experts, collaborating
+                            seamlessly to transform challenges into opportunities. Together, we deliver tailored solutions
+                            that drive impact and inspire growth.
+                        </p>
+                    </motion.div>
+
+                    <div className="absolute inset-0 w-full max-w-6xl mx-auto h-full pointer-events-none">
+                        <div className="relative w-full h-full">
                             <FloatingCube
+                                style={{ ...cube1, x: "-50%", y: "-50%" }}
                                 images={["/img1.jpg", "/img2.jpg", "/img3.jpg", "/img4.jpg", "/img5.jpg", "/img6.jpg"]}
-                                className="md:left-[15%] md:top-[10%]"
+                                rotateX={cubeRotateX}
+                                rotateY={cubeRotateY}
+                                individualRotateY={individualRotateY}
                             />
+
                             <FloatingCube
+                                style={{ ...cube2, x: "-50%", y: "-50%" }}
                                 images={["/img2.jpg", "/img3.jpg", "/img4.jpg", "/img5.jpg", "/img6.jpg", "/img1.jpg"]}
-                                className="md:right-[15%] md:top-[10%]"
+                                rotateX={cubeRotateX}
+                                rotateY={cubeRotateY}
+                                individualRotateY={individualRotateY}
                             />
 
-                            {/* Middle Row */}
                             <FloatingCube
+                                style={{ ...cube3, x: "-50%", y: "-50%" }}
                                 images={["/img3.jpg", "/img4.jpg", "/img5.jpg", "/img6.jpg", "/img1.jpg", "/img2.jpg"]}
-                                className="md:left-[2%] md:top-[38%]"
-                            />
-                            <FloatingCube
-                                images={["/img4.jpg", "/img5.jpg", "/img6.jpg", "/img1.jpg", "/img2.jpg", "/img3.jpg"]}
-                                className="md:right-[2%] md:top-[38%]"
+                                rotateX={cubeRotateX}
+                                rotateY={cubeRotateY}
+                                individualRotateY={individualRotateY}
                             />
 
-                            {/* Bottom Row */}
                             <FloatingCube
-                                images={["/img5.jpg", "/img6.jpg", "/img1.jpg", "/img2.jpg", "/img3.jpg", "/img4.jpg"]}
-                                className="md:bottom-[13%] md:left-[15%]"
+                                style={{ ...cube4, x: "-50%", y: "-50%" }}
+                                images={["/img4.jpg", "/img5.jpg", "/img6.jpg", "/img1.jpg", "/img2.jpg", "/img3.jpg"]}
+                                rotateX={cubeRotateX}
+                                rotateY={cubeRotateY}
+                                individualRotateY={individualRotateY}
                             />
+
                             <FloatingCube
+                                style={{ ...cube5, x: "-50%", y: "-50%" }}
+                                images={["/img5.jpg", "/img6.jpg", "/img1.jpg", "/img2.jpg", "/img3.jpg", "/img4.jpg"]}
+                                rotateX={cubeRotateX}
+                                rotateY={cubeRotateY}
+                                individualRotateY={individualRotateY}
+                            />
+
+                            <FloatingCube
+                                style={{ ...cube6, x: "-50%", y: "-50%" }}
                                 images={["/img6.jpg", "/img1.jpg", "/img2.jpg", "/img3.jpg", "/img4.jpg", "/img5.jpg"]}
-                                className="md:bottom-[13%] md:right-[15%]"
+                                rotateX={cubeRotateX}
+                                rotateY={cubeRotateY}
+                                individualRotateY={individualRotateY}
                             />
                         </div>
-                    </motion.div>
+                    </div>
                 </div>
             </section>
 
-            {/* --- NEXT SECTION --- */}
-            <div className="flex min-h-[50vh] grow items-center justify-center bg-[#CDB9AB] text-[#331D10] z-20 relative">
+            <div className="flex min-h-screen grow items-center justify-center bg-[#CDB9AB] text-[#331D10] z-20 relative">
                 <p className="text-sm font-medium tracking-wide">Your next section goes here.</p>
             </div>
         </div>
