@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, memo } from "react";
+import React, { useRef } from "react";
 import Image from "next/image";
 import { motion, useScroll, useTransform, MotionValue } from "framer-motion";
 
@@ -18,21 +18,6 @@ const GlobalStyles = () => (
     `}</style>
 );
 
-const CubeLogo = memo(({ style }: { style?: any }) => {
-    const baseClass = "absolute w-[36px] h-[36px] bg-[#FFE4D6]";
-    return (
-        <motion.div style={style} className="relative w-[140px] h-[92px] shrink-0" aria-label="Logo">
-            <div className={`${baseClass} -top-1.5 left-1/2 -translate-x-1/2`} />
-            <div className={`${baseClass} top-3 left-2 -rotate-45`} />
-            <div className={`${baseClass} top-3 right-2 rotate-45`} />
-            <div className={`${baseClass} bottom-0 -left-2.5`} />
-            <div className={`${baseClass} bottom-0 left-1/2 -translate-x-1/2`} />
-            <div className={`${baseClass} bottom-0 -right-2.5`} />
-        </motion.div>
-    );
-});
-CubeLogo.displayName = "CubeLogo";
-
 interface FloatingCubeProps {
     images: string[];
     alt?: string;
@@ -41,6 +26,7 @@ interface FloatingCubeProps {
     rotateX: MotionValue<number>;
     rotateY: MotionValue<number>;
     individualRotateY?: MotionValue<number>;
+    rotateZ?: MotionValue<number>;
 }
 
 const FloatingCube: React.FC<FloatingCubeProps> = ({
@@ -51,6 +37,7 @@ const FloatingCube: React.FC<FloatingCubeProps> = ({
     rotateX,
     rotateY,
     individualRotateY,
+    rotateZ,
 }) => {
     const getImg = (index: number) => images[index % images.length];
 
@@ -65,6 +52,7 @@ const FloatingCube: React.FC<FloatingCubeProps> = ({
                 style={{
                     rotateX: rotateX,
                     rotateY: individualRotateY ? individualRotateY : rotateY,
+                    rotateZ: rotateZ || 0,
                 }}
                 className="relative h-full w-full preserve-3d"
             >
@@ -96,29 +84,20 @@ const CubeFace = ({ src, alt, transform }: { src: string; alt: string; transform
 
 const useCubePath = (
     scrollY: MotionValue<number>,
-    start: { x: number; y: number; r: number },
-    end: { top: string; left: string; r: number }
+    start: { x: number; y: number; scale: number; opacity: number; rotation: number },
+    end: { x: number; y: number; scale: number; opacity: number; rotation: number }
 ) => {
-    const PHASE1_END = 0.1;
-    const PHASE2_END = 0.33;
+    const PHASE1_END = 0.33;
 
-    const left = useTransform(
-        scrollY,
-        [0, PHASE1_END, PHASE2_END],
-        [`calc(50% + ${start.x}px)`, `calc(50% + ${start.x}px)`, end.left]
-    );
+    const x = useTransform(scrollY, [0, PHASE1_END], [start.x, end.x]);
 
-    const top = useTransform(
-        scrollY,
-        [0, PHASE1_END, PHASE2_END],
-        [`calc(100px + ${start.y}px)`, `calc(100px + ${start.y}px)`, end.top]
-    );
+    const y = useTransform(scrollY, [0, PHASE1_END], [start.y, end.y]);
 
-    const scale = useTransform(scrollY, [0, PHASE1_END, PHASE2_END], [0.25, 0.25, 1]);
-    const rotate = useTransform(scrollY, [0, PHASE1_END, PHASE2_END], [start.r, start.r, end.r]);
-    const opacity = useTransform(scrollY, [0, 0.05, 0.1], [0, 0, 1]);
+    const scale = useTransform(scrollY, [0, PHASE1_END], [start.scale, end.scale]);
+    const opacity = useTransform(scrollY, [0, PHASE1_END], [start.opacity, end.opacity]);
+    const rotation = useTransform(scrollY, [0, PHASE1_END], [start.rotation, end.rotation]);
 
-    return { left, top, scale, rotate, opacity };
+    return { x, y, scale, opacity, rotation };
 };
 
 const LandingPage: React.FC = () => {
@@ -128,30 +107,57 @@ const LandingPage: React.FC = () => {
         offset: ["start start", "end end"],
     });
 
-    const PHASE1_END = 0.1;
-    const PHASE2_END = 0.33;
-    const PHASE3_END = 0.67;
+    const PHASE1_END = 0.33;
+    const PHASE2_END = 0.67;
 
-    const logoOpacity = useTransform(scrollYProgress, [0, PHASE1_END], [1, 0]);
     const textBlur = useTransform(scrollYProgress, [0, 0.15, 0.25], ["blur(0px)", "blur(0px)", "blur(20px)"]);
     const textOpacity = useTransform(scrollYProgress, [0, 0.2, 0.3], [1, 1, 0]);
     const textScale = useTransform(scrollYProgress, [0, 0.3], [1, 1.3]);
 
-    const centerTextOpacity = useTransform(scrollYProgress, [PHASE2_END - 0.05, PHASE2_END], [0, 1]);
+    const centerTextOpacity = useTransform(scrollYProgress, [PHASE1_END - 0.05, PHASE1_END], [0, 1]);
 
-    const cubeRotateX = useTransform(scrollYProgress, [PHASE1_END, PHASE2_END, PHASE3_END], [45, 135, 360]);
+    const cubeRotateX = useTransform(scrollYProgress, [0, PHASE1_END, PHASE2_END], [0, 180, 360]);
 
-    const cubeRotateY = useTransform(scrollYProgress, [PHASE1_END, PHASE2_END, PHASE3_END], [45, 135, 360]);
+    const cubeRotateY = useTransform(scrollYProgress, [0, PHASE1_END, PHASE2_END], [0, 180, 360]);
 
-    const individualRotateY = useTransform(scrollYProgress, [PHASE3_END, 1], [0, 240]);
+    const individualRotateY = useTransform(scrollYProgress, [PHASE2_END, 1], [0, 90]);
 
-    const cube1 = useCubePath(scrollYProgress, { x: 0, y: -6, r: 0 }, { top: "20%", left: "25%", r: 0 });
-    const cube2 = useCubePath(scrollYProgress, { x: -35, y: 18, r: -45 }, { top: "50%", left: "15%", r: 0 });
-    const cube3 = useCubePath(scrollYProgress, { x: -52, y: 54, r: 0 }, { top: "80%", left: "25%", r: 0 });
 
-    const cube4 = useCubePath(scrollYProgress, { x: 35, y: 18, r: 45 }, { top: "20%", left: "75%", r: 0 });
-    const cube5 = useCubePath(scrollYProgress, { x: 0, y: 54, r: 0 }, { top: "50%", left: "85%", r: 0 });
-    const cube6 = useCubePath(scrollYProgress, { x: 52, y: 54, r: 0 }, { top: "80%", left: "75%", r: 0 });
+    const cube1 = useCubePath(
+        scrollYProgress,
+        { x: 65, y: -45, scale: 0.3, opacity: 1, rotation: 45 },
+        { x: -300, y: -100, scale: 1, opacity: 1, rotation: 0 }
+    );
+
+    const cube2 = useCubePath(
+        scrollYProgress,
+        { x: -65, y: -45, scale: 0.3, opacity: 1, rotation: 45 },
+        { x: -300, y: 400, scale: 1, opacity: 1, rotation: 0 }
+    );
+
+    const cube3 = useCubePath(
+        scrollYProgress,
+        { x: 0, y: 20, scale: 0.3, opacity: 1, rotation: 0 },
+        { x: 300, y: -100, scale: 1, opacity: 1, rotation: 0 } 
+    );
+
+    const cube4 = useCubePath(
+        scrollYProgress,
+        { x: -90, y: 20, scale: 0.3, opacity: 1, rotation: 0 },
+        { x: -500, y: 150, scale: 1, opacity: 1, rotation: 0 } 
+    );
+
+    const cube5 = useCubePath(
+        scrollYProgress,
+        { x: 0, y: -70, scale: 0.3, opacity: 1, rotation: 0 },
+        { x: 300, y: 400, scale: 1, opacity: 1, rotation: 0 } 
+    );
+
+    const cube6 = useCubePath(
+        scrollYProgress,
+        { x: 90, y: 20, scale: 0.3, opacity: 1, rotation: 0 },
+        { x: 500, y: 150, scale: 1, opacity: 1, rotation: 0 } 
+    );
 
     return (
         <div className="flex min-h-screen flex-col font-sans bg-[#331707] text-[#F2EBE3]">
@@ -159,20 +165,17 @@ const LandingPage: React.FC = () => {
 
             <section ref={containerRef} className="relative w-full h-[600vh]">
                 <div className="sticky top-0 flex h-screen w-full flex-col items-center justify-center overflow-hidden">
-                    <div className="absolute top-[100px] z-50">
-                        <CubeLogo style={{ opacity: logoOpacity }} />
-                    </div>
-
                     <motion.div
                         style={{ filter: textBlur, opacity: textOpacity, scale: textScale }}
                         className="absolute inset-0 flex flex-col items-center justify-center z-20 pointer-events-none px-4"
                     >
-                        <section className="max-w-5xl text-center mt-32">
+                        <section className="max-w-5xl text-center">
                             <h1 className="font-serif text-[40px] leading-tight md:text-[60px] md:leading-[1.15] font-normal">
-                                The First Media Company crafted For the Digital First generation
+                                The first media company crafted
+                                <br />
+                                for the digital first generation.
                             </h1>
                         </section>
-                        <div className="animate-bounce mt-20 opacity-50 text-sm">Scroll to Transform ↓</div>
                     </motion.div>
 
                     <motion.div
@@ -189,56 +192,90 @@ const LandingPage: React.FC = () => {
                         </p>
                     </motion.div>
 
-                    <div className="absolute inset-0 w-full max-w-6xl mx-auto h-full pointer-events-none">
-                        <div className="relative w-full h-full">
-                            <FloatingCube
-                                style={{ ...cube1, x: "-50%", y: "-50%" }}
-                                images={["/img1.jpg", "/img2.jpg", "/img3.jpg", "/img4.jpg", "/img5.jpg", "/img6.jpg"]}
-                                rotateX={cubeRotateX}
-                                rotateY={cubeRotateY}
-                                individualRotateY={individualRotateY}
-                            />
+                    <div className="absolute inset-0 w-full h-full pointer-events-none flex items-start justify-center top-30">
+                        <FloatingCube
+                            style={{
+                                x: cube1.x,
+                                y: cube1.y,
+                                scale: cube1.scale,
+                                opacity: cube1.opacity,
+                            }}
+                            images={["/img1.jpg", "/img2.jpg", "/img3.jpg", "/img4.jpg", "/img5.jpg", "/img6.jpg"]}
+                            rotateX={cubeRotateX}
+                            rotateY={cubeRotateY}
+                            individualRotateY={individualRotateY}
+                            rotateZ={cube1.rotation}
+                        />
 
-                            <FloatingCube
-                                style={{ ...cube2, x: "-50%", y: "-50%" }}
-                                images={["/img2.jpg", "/img3.jpg", "/img4.jpg", "/img5.jpg", "/img6.jpg", "/img1.jpg"]}
-                                rotateX={cubeRotateX}
-                                rotateY={cubeRotateY}
-                                individualRotateY={individualRotateY}
-                            />
+                        <FloatingCube
+                            style={{
+                                x: cube2.x,
+                                y: cube2.y,
+                                scale: cube2.scale,
+                                opacity: cube2.opacity,
+                            }}
+                            images={["/img2.jpg", "/img3.jpg", "/img4.jpg", "/img5.jpg", "/img6.jpg", "/img1.jpg"]}
+                            rotateX={cubeRotateX}
+                            rotateY={cubeRotateY}
+                            individualRotateY={individualRotateY}
+                            rotateZ={cube2.rotation}
+                        />
 
-                            <FloatingCube
-                                style={{ ...cube3, x: "-50%", y: "-50%" }}
-                                images={["/img3.jpg", "/img4.jpg", "/img5.jpg", "/img6.jpg", "/img1.jpg", "/img2.jpg"]}
-                                rotateX={cubeRotateX}
-                                rotateY={cubeRotateY}
-                                individualRotateY={individualRotateY}
-                            />
+                        <FloatingCube
+                            style={{
+                                x: cube3.x,
+                                y: cube3.y,
+                                scale: cube3.scale,
+                                opacity: cube3.opacity,
+                            }}
+                            images={["/img3.jpg", "/img4.jpg", "/img5.jpg", "/img6.jpg", "/img1.jpg", "/img2.jpg"]}
+                            rotateX={cubeRotateX}
+                            rotateY={cubeRotateY}
+                            individualRotateY={individualRotateY}
+                            rotateZ={cube3.rotation}
+                        />
 
-                            <FloatingCube
-                                style={{ ...cube4, x: "-50%", y: "-50%" }}
-                                images={["/img4.jpg", "/img5.jpg", "/img6.jpg", "/img1.jpg", "/img2.jpg", "/img3.jpg"]}
-                                rotateX={cubeRotateX}
-                                rotateY={cubeRotateY}
-                                individualRotateY={individualRotateY}
-                            />
+                        <FloatingCube
+                            style={{
+                                x: cube4.x,
+                                y: cube4.y,
+                                scale: cube4.scale,
+                                opacity: cube4.opacity,
+                            }}
+                            images={["/img4.jpg", "/img5.jpg", "/img6.jpg", "/img1.jpg", "/img2.jpg", "/img3.jpg"]}
+                            rotateX={cubeRotateX}
+                            rotateY={cubeRotateY}
+                            individualRotateY={individualRotateY}
+                            rotateZ={cube4.rotation}
+                        />
 
-                            <FloatingCube
-                                style={{ ...cube5, x: "-50%", y: "-50%" }}
-                                images={["/img5.jpg", "/img6.jpg", "/img1.jpg", "/img2.jpg", "/img3.jpg", "/img4.jpg"]}
-                                rotateX={cubeRotateX}
-                                rotateY={cubeRotateY}
-                                individualRotateY={individualRotateY}
-                            />
+                        <FloatingCube
+                            style={{
+                                x: cube5.x,
+                                y: cube5.y,
+                                scale: cube5.scale,
+                                opacity: cube5.opacity,
+                            }}
+                            images={["/img5.jpg", "/img6.jpg", "/img1.jpg", "/img2.jpg", "/img3.jpg", "/img4.jpg"]}
+                            rotateX={cubeRotateX}
+                            rotateY={cubeRotateY}
+                            individualRotateY={individualRotateY}
+                            rotateZ={cube5.rotation}
+                        />
 
-                            <FloatingCube
-                                style={{ ...cube6, x: "-50%", y: "-50%" }}
-                                images={["/img6.jpg", "/img1.jpg", "/img2.jpg", "/img3.jpg", "/img4.jpg", "/img5.jpg"]}
-                                rotateX={cubeRotateX}
-                                rotateY={cubeRotateY}
-                                individualRotateY={individualRotateY}
-                            />
-                        </div>
+                        <FloatingCube
+                            style={{
+                                x: cube6.x,
+                                y: cube6.y,
+                                scale: cube6.scale,
+                                opacity: cube6.opacity,
+                            }}
+                            images={["/img6.jpg", "/img1.jpg", "/img2.jpg", "/img3.jpg", "/img4.jpg", "/img5.jpg"]}
+                            rotateX={cubeRotateX}
+                            rotateY={cubeRotateY}
+                            individualRotateY={individualRotateY}
+                            rotateZ={cube6.rotation}
+                        />
                     </div>
                 </div>
             </section>
