@@ -1,1 +1,22 @@
 @import "tailwindcss";
+
+
+/* --- Add these custom 3D utilities --- */
+@layer utilities {
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+  .preserve-3d {
+    transform-style: preserve-3d;
+  }
+  .backface-hidden {
+    backface-visibility: hidden;
+  }
+}
+
+/* Infinite 3D Spin Animation */
+@keyframes spin-3d {
+  from { transform: rotateX(0deg) rotateY(0deg); }
+  to   { transform: rotateX(360deg) rotateY(360deg); }
+}
+
